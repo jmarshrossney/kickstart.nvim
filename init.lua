@@ -190,6 +190,15 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
+-- jmr: alt-i to create python code chunk in quarto markdown document
+vim.keymap.set({ 'n', 'i' }, '<m-i>', '<esc>i```{python}<cr>```<esc>O', { desc = '[i]nsert code chunk' })
+
+-- jmr: create new ipython terminal within neovim, enter, go to insert mode
+vim.keymap.set('n', '<leader>ci', ':split term://ipython<CR>i', { desc = '[c]ode repl [i]python' })
+
+-- jmr: set 'ww' to escape insert mode and save
+vim.keymap.set('i', 'ww', '<esc:w<cr>', { desc = 'Escape from insert and save' })
+
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
@@ -204,6 +213,15 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   end,
 })
 
+-- jmr
+vim.api.nvim_create_autocmd('TermOpen', {
+  desc = 'Remove line numbers in terminal',
+  group = vim.api.nvim_create_augroup('kickstart-term', { clear = true }),
+  callback = function()
+    vim.wo.number = false
+  end,
+})
+
 -- [[ Install `lazy.nvim` plugin manager ]]
 --    See `:help lazy.nvim.txt` or https://github.com/folke/lazy.nvim for more info
 local lazypath = vim.fn.stdpath 'data' .. '/lazy/lazy.nvim'
@@ -215,6 +233,9 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
   end
 end ---@diagnostic disable-next-line: undefined-field
 vim.opt.rtp:prepend(lazypath)
+
+-- jmr: Set default shiftwidth
+vim.opt.shiftwidth = 4
 
 -- [[ Configure and install plugins ]]
 --
@@ -236,7 +257,53 @@ require('lazy').setup({
   -- keys can be used to configure plugin behavior/loading/etc.
   --
   -- Use `opts = {}` to force a plugin to be loaded.
-  --
+
+  -- jmr: zen mode
+  {
+    'folke/zen-mode.nvim',
+    opts = {},
+  },
+
+  -- jmr: inspired by (copied from) quarto kickstarter
+  {
+    'quarto-dev/quarto-nvim',
+    opts = {},
+    dependencies = {
+      'jmbuhr/otter.nvim',
+      opts = {},
+    },
+  },
+
+  {
+    'jpalardy/vim-slime',
+    init = function()
+      vim.g.slime_target = 'neovim'
+      vim.g.slime_python_ipython = 1
+      vim.g.slime_dispatch_ipython_pause = 100
+      vim.g.slime_cell_delimiter = '#\\s\\=%%'
+
+      vim.cmd [[
+        function! _EscapeText_quarto(text)
+        if slime#config#resolve("python_ipython") && len(split(a:text,"\n")) > 1
+        return ["%cpaste -q\n", slime#config#resolve("dispatch_ipython_pause"), a:text, "--\n"]
+        else
+        let empty_lines_pat = '\(^\|\n\)\zs\(\s*\n\+\)\+'
+        let no_empty_lines = substitute(a:text, empty_lines_pat, "", "g")
+        let dedent_pat = '\(^\|\n\)\zs'.matchstr(no_empty_lines, '^\s*')
+        let dedented_lines = substitute(no_empty_lines, dedent_pat, "", "g")
+        let except_pat = '\(elif\|else\|except\|finally\)\@!'
+        let add_eol_pat = '\n\s[^\n]\+\n\zs\ze\('.except_pat.'\S\|$\)'
+        return substitute(dedented_lines, add_eol_pat, "\n", "g")
+        end
+        endfunction
+      ]]
+    end,
+    config = function()
+      vim.keymap.set({ 'n', 'i' }, '<m-cr>', function()
+        vim.cmd [[ call slime#send_cell() ]]
+      end, { desc = 'send code cell to terminal' })
+    end,
+  },
 
   -- Here is a more advanced example where we pass configuration
   -- options to `gitsigns.nvim`. This is equivalent to the following Lua:
@@ -456,6 +523,7 @@ require('lazy').setup({
   {
     -- Main LSP Configuration
     'neovim/nvim-lspconfig',
+    enables = true,
     dependencies = {
       -- Automatically install LSPs and related tools to stdpath for Neovim
       { 'williamboman/mason.nvim', config = true }, -- NOTE: Must be loaded before dependants
@@ -596,6 +664,10 @@ require('lazy').setup({
       local capabilities = vim.lsp.protocol.make_client_capabilities()
       capabilities = vim.tbl_deep_extend('force', capabilities, require('cmp_nvim_lsp').default_capabilities())
 
+      -- jmr: Stop pyright and neovim fighting, according to l579 in
+      -- https://github.com/jmbuhr/kickstart.nvim-quarto-example/blob/master/init.lua
+      capabilities.workspace.didChangeWatchedFiles.dynamicRegistration = false
+
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
       --
@@ -608,7 +680,7 @@ require('lazy').setup({
       local servers = {
         -- clangd = {},
         -- gopls = {},
-        -- pyright = {},
+        pyright = {},
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
@@ -811,6 +883,7 @@ require('lazy').setup({
             -- set group index to 0 to skip loading LuaLS completions as lazydev recommends it
             group_index = 0,
           },
+          { name = 'otter' }, -- jmr / quarto
           { name = 'nvim_lsp' },
           { name = 'luasnip' },
           { name = 'path' },
@@ -883,7 +956,23 @@ require('lazy').setup({
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+      ensure_installed = {
+        'bash',
+        'c',
+        'html',
+        'julia',
+        'latex', -- requires tree-sitter-cli
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'python',
+        'rst',
+        'toml',
+        'vim',
+        'vimdoc',
+        'yaml',
+      },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
