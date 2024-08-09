@@ -196,6 +196,9 @@ vim.keymap.set({ 'n', 'i' }, '<m-i>', '<esc>i```{python}<cr>```<esc>O', { desc =
 -- create new ipython terminal within neovim, enter, go to insert mode
 vim.keymap.set('n', '<leader>ci', ':split term://ipython<CR>i', { desc = '[c]ode repl [i]python' })
 
+-- set 'ww' to escape insert mode and save
+vim.keymap.set('i', 'ww', '<esc>:w<cr>', { desc = 'Escape from insert and save' })
+
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
@@ -297,6 +300,12 @@ require('lazy').setup({
         vim.cmd [[ call slime#send_cell() ]]
       end, { desc = 'send code cell to terminal' })
     end,
+  },
+
+  -- zen mode :)
+  {
+    'folke/zen-mode.nvim',
+    opts = {},
   },
 
   -- Here is a more advanced example where we pass configuration
@@ -900,7 +909,22 @@ require('lazy').setup({
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
     opts = {
-      ensure_installed = { 'bash', 'c', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'python', 'toml', 'rst' },
+      ensure_installed = {
+        'bash',
+        'c',
+        'html',
+        'latex', -- requires tree-sitter-cli
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'python',
+        'rst',
+        'toml',
+        'vim',
+        'vimdoc',
+        'yaml',
+      },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
