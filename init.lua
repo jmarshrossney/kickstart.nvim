@@ -264,6 +264,13 @@ require('lazy').setup({
     opts = {},
   },
 
+  -- jmr: markdown stuff
+  {
+    'tadmccorkle/markdown.nvim',
+    ft = { 'qmd' }, -- or 'event = "VeryLazy"'
+    opts = {},
+  },
+
   -- jmr: inspired by (copied from) quarto kickstarter
   {
     'quarto-dev/quarto-nvim',
@@ -271,6 +278,7 @@ require('lazy').setup({
     dependencies = {
       'jmbuhr/otter.nvim',
       opts = {},
+      'nvim-treesitter/nvim-treesitter',
     },
   },
 
